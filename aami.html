@@ -4,40 +4,22 @@
   <meta charset="UTF-8">
   <title>Hindi Sentence Builder</title>
   <style>
-    body {
-      font-family: sans-serif;
-      padding: 20px;
-    }
-    #question {
-      font-size: 20px;
-      margin-bottom: 10px;
-      font-weight: bold;
-      color: #444;
-    }
-    #sentence-area {
-      border: 2px solid #ccc;
-      min-height: 50px;
-      padding: 10px;
-      margin-bottom: 20px;
-      display: flex;
-      flex-wrap: wrap;
-    }
-    #cards-area {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-    }
+    body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
+    #scoreboard { font-size: 20px; margin-bottom: 15px; font-weight: bold; }
+    #question { font-size: 22px; margin: 20px 0; }
+    #puzzle { margin: 20px 0; }
     .card {
+      display: inline-block;
       padding: 10px 15px;
-      border: 1px solid #333;
+      margin: 5px;
+      background: #f0f0f0;
       border-radius: 8px;
       cursor: pointer;
-      font-size: 24px;
-      user-select: none;
-      background: #f0f0f0;
+      font-size: 20px;
       transition: transform 0.2s;
     }
-    .shake {
+    .card:hover { background: #ddd; }
+    .card.shake {
       animation: shake 0.3s;
     }
     @keyframes shake {
@@ -47,122 +29,112 @@
       75% { transform: translateX(-5px); }
       100% { transform: translateX(0); }
     }
-    #fileInput {
-      margin-bottom: 20px;
-      display: none;
-    }
+    #answer { margin-top: 20px; font-size: 20px; min-height: 40px; }
+    #status { margin-top: 15px; font-size: 18px; }
   </style>
 </head>
 <body>
-  <h2>Hindi Sentence Builder</h2>
-  <input type="file" id="fileInput" accept=".txt,.csv"><br>
+  <div id="scoreboard">Score: 0 | Progress: 0/0</div>
+  <input type="file" id="fileInput" accept=".txt">
   <div id="question"></div>
-  <div id="sentence-area"></div>
-  <div id="cards-area"></div>
-  <button id="nextBtn" style="display:none;">Next Sentence</button>
+  <div id="puzzle"></div>
+  <div id="answer"></div>
+  <div id="status"></div>
 
   <script>
     let sentences = [];
-    let currentSentence = [];
-    let currentIndex = 0;
-    let expectedIndex = 0;
+    let current = 0;
+    let expectedWords = [];
+    let score = 0;
 
-    const fileInput = document.getElementById("fileInput");
-
-    // Try loading sentences.txt first
-    fetch("sentences.txt")
-      .then(response => {
-        if (!response.ok) throw new Error("File not found");
-        return response.text();
-      })
-      .then(data => {
-        sentences = data.split(/\r?\n/).filter(l => l.trim() !== "");
-        currentIndex = 0;
-        loadSentence();
-      })
-      .catch(err => {
-        console.log("sentences.txt not found, falling back to upload");
-        fileInput.style.display = "block";
-        fileInput.addEventListener("change", handleFileUpload);
-      });
-
-    function handleFileUpload(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        sentences = e.target.result.split(/\r?\n/).filter(l => l.trim() !== "");
-        currentIndex = 0;
-        loadSentence();
-      };
-      reader.readAsText(file, "UTF-8");
+    function updateScoreboard() {
+      document.getElementById("scoreboard").textContent =
+        `Score: ${score} | Progress: ${current}/${sentences.length}`;
     }
 
-    function loadSentence() {
-      if (currentIndex >= sentences.length) {
-        alert("All sentences completed!");
+    async function loadDefaultFile() {
+      try {
+        let resp = await fetch("sentences.txt");
+        if (!resp.ok) throw new Error("File missing");
+        let text = await resp.text();
+        sentences = text.trim().split("\n").filter(l => l.length > 0);
+        startGame();
+      } catch {
+        document.getElementById("status").textContent =
+          "Upload a sentences.txt file to start.";
+      }
+    }
+
+    document.getElementById("fileInput").addEventListener("change", function (e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function (event) {
+        sentences = event.target.result.trim().split("\n").filter(l => l.length > 0);
+        current = 0;
+        score = 0;
+        startGame();
+      };
+      reader.readAsText(file);
+    });
+
+    function startGame() {
+      updateScoreboard();
+      showSentence();
+    }
+
+    function showSentence() {
+      if (current >= sentences.length) {
+        document.getElementById("question").textContent = "Game Over!";
+        document.getElementById("puzzle").innerHTML = "";
+        document.getElementById("answer").textContent = "";
+        document.getElementById("status").textContent = `Final Score: ${score}`;
         return;
       }
 
-      const line = sentences[currentIndex];
-      const parts = line.split("?");
-      if (parts.length < 2) {
-        alert("Invalid format in line: " + line);
-        currentIndex++;
-        loadSentence();
-        return;
-      }
+      let [q, ans] = sentences[current].split("?");
+      document.getElementById("question").textContent = q + "?";
 
-      const questionText = parts[0].trim();
-      const sentenceText = parts[1].trim();
+      expectedWords = ans.trim().split(" ").filter(w => w.length > 0);
 
-      currentSentence = sentenceText.split(" ");
-      expectedIndex = 0;
-
-      document.getElementById("question").textContent = questionText;
-      document.getElementById("sentence-area").innerHTML = "";
-      const cardsArea = document.getElementById("cards-area");
-      cardsArea.innerHTML = "";
-
-      // Shuffle words
-      const shuffled = [...currentSentence].sort(() => Math.random() - 0.5);
+      let shuffled = [...expectedWords].sort(() => Math.random() - 0.5);
+      let puzzleDiv = document.getElementById("puzzle");
+      puzzleDiv.innerHTML = "";
+      document.getElementById("answer").textContent = "";
 
       shuffled.forEach(word => {
-        const card = document.createElement("div");
-        card.className = "card";
+        let card = document.createElement("div");
         card.textContent = word;
+        card.className = "card";
         card.addEventListener("click", () => handleCardClick(card, word));
-        cardsArea.appendChild(card);
+        puzzleDiv.appendChild(card);
       });
 
-      document.getElementById("nextBtn").style.display = "none";
+      document.getElementById("status").textContent = "";
+      updateScoreboard();
     }
 
     function handleCardClick(card, word) {
-      if (word === currentSentence[expectedIndex]) {
-        // Correct → remove from jumbled area, add to sentence area
+      let answerDiv = document.getElementById("answer");
+      if (word === expectedWords[0]) {
+        answerDiv.textContent += word + " ";
+        expectedWords.shift();
         card.remove();
-        const correctCard = document.createElement("div");
-        correctCard.className = "card";
-        correctCard.textContent = word;
-        correctCard.style.background = "#c8e6c9";
-        document.getElementById("sentence-area").appendChild(correctCard);
-
-        expectedIndex++;
-        if (expectedIndex === currentSentence.length) {
-          document.getElementById("nextBtn").style.display = "inline-block";
+        if (expectedWords.length === 0) {
+          score += 50;
+          current++;
+          updateScoreboard();
+          setTimeout(showSentence, 800);
         }
       } else {
         card.classList.add("shake");
+        score -= 10;
+        updateScoreboard();
         setTimeout(() => card.classList.remove("shake"), 300);
       }
     }
 
-    document.getElementById("nextBtn").addEventListener("click", () => {
-      currentIndex++;
-      loadSentence();
-    });
+    loadDefaultFile();
   </script>
 </body>
 </html>
