@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8">
+  <title>Hindi Sentence Builder</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+    }
+    #question {
+      font-size: 20px;
+      margin-bottom: 10px;
+      font-weight: bold;
+      color: #444;
+    }
+    #sentence-area {
+      border: 2px solid #ccc;
+      min-height: 50px;
+      padding: 10px;
+      margin-bottom: 20px;
+      display: flex;
+      flex-wrap: wrap;
+    }
+    #cards-area {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .card {
+      padding: 10px 15px;
+      border: 1px solid #333;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 24px;
+      user-select: none;
+      background: #f0f0f0;
+      transition: transform 0.2s;
+    }
+    .shake {
+      animation: shake 0.3s;
+    }
+    @keyframes shake {
+      0% { transform: translateX(0); }
+      25% { transform: translateX(-5px); }
+      50% { transform: translateX(5px); }
+      75% { transform: translateX(-5px); }
+      100% { transform: translateX(0); }
+    }
+    #fileInput {
+      margin-bottom: 20px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h2>Hindi Sentence Builder</h2>
+  <input type="file" id="fileInput" accept=".txt,.csv"><br>
+  <div id="question"></div>
+  <div id="sentence-area"></div>
+  <div id="cards-area"></div>
+  <button id="nextBtn" style="display:none;">Next Sentence</button>
+
+  <script>
+    let sentences = [];
+    let currentSentence = [];
+    let currentIndex = 0;
+    let expectedIndex = 0;
+
+    const fileInput = document.getElementById("fileInput");
+
+    // Try loading sentences.txt first
+    fetch("sentences.txt")
+      .then(response => {
+        if (!response.ok) throw new Error("File not found");
+        return response.text();
+      })
+      .then(data => {
+        sentences = data.split(/\r?\n/).filter(l => l.trim() !== "");
+        currentIndex = 0;
+        loadSentence();
+      })
+      .catch(err => {
+        console.log("sentences.txt not found, falling back to upload");
+        fileInput.style.display = "block";
+        fileInput.addEventListener("change", handleFileUpload);
+      });
+
+    function handleFileUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        sentences = e.target.result.split(/\r?\n/).filter(l => l.trim() !== "");
+        currentIndex = 0;
+        loadSentence();
+      };
+      reader.readAsText(file, "UTF-8");
+    }
+
+    function loadSentence() {
+      if (currentIndex >= sentences.length) {
+        alert("All sentences completed!");
+        return;
+      }
+
+      const line = sentences[currentIndex];
+      const parts = line.split("?");
+      if (parts.length < 2) {
+        alert("Invalid format in line: " + line);
+        currentIndex++;
+        loadSentence();
+        return;
+      }
+
+      const questionText = parts[0].trim();
+      const sentenceText = parts[1].trim();
+
+      currentSentence = sentenceText.split(" ");
+      expectedIndex = 0;
+
+      document.getElementById("question").textContent = questionText;
+      document.getElementById("sentence-area").innerHTML = "";
+      const cardsArea = document.getElementById("cards-area");
+      cardsArea.innerHTML = "";
+
+      // Shuffle words
+      const shuffled = [...currentSentence].sort(() => Math.random() - 0.5);
+
+      shuffled.forEach(word => {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.textContent = word;
+        card.addEventListener("click", () => handleCardClick(card, word));
+        cardsArea.appendChild(card);
+      });
+
+      document.getElementById("nextBtn").style.display = "none";
+    }
+
+    function handleCardClick(card, word) {
+      if (word === currentSentence[expectedIndex]) {
+        // Correct → remove from jumbled area, add to sentence area
+        card.remove();
+        const correctCard = document.createElement("div");
+        correctCard.className = "card";
+        correctCard.textContent = word;
+        correctCard.style.background = "#c8e6c9";
+        document.getElementById("sentence-area").appendChild(correctCard);
+
+        expectedIndex++;
+        if (expectedIndex === currentSentence.length) {
+          document.getElementById("nextBtn").style.display = "inline-block";
+        }
+      } else {
+        card.classList.add("shake");
+        setTimeout(() => card.classList.remove("shake"), 300);
+      }
+    }
+
+    document.getElementById("nextBtn").addEventListener("click", () => {
+      currentIndex++;
+      loadSentence();
+    });
+  </script>
+</body>
+</html>
